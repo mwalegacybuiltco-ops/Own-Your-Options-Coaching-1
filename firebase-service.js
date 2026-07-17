@@ -61,6 +61,29 @@ export async function saveCloudState(uid, state) {
   );
 }
 
+export async function loadCommunityPosts() {
+  const snapshot = await firestoreApi.getDocs(
+    firestoreApi.query(
+      firestoreApi.collection(db, "public", "community", "posts"),
+      firestoreApi.orderBy("createdAt", "desc"),
+      firestoreApi.limit(40)
+    )
+  );
+  return snapshot.docs.map((document) => document.data());
+}
+
+export async function addCommunityPost(user, post) {
+  if (!user) {
+    throw new Error("Sign in to post.");
+  }
+  await firestoreApi.addDoc(firestoreApi.collection(db, "public", "community", "posts"), {
+    ...post,
+    uid: user.uid,
+    email: user.email,
+    createdAt: firestoreApi.serverTimestamp()
+  });
+}
+
 export async function loadPublicSettings() {
   const snapshot = await firestoreApi.getDoc(firestoreApi.doc(db, "public", "settings"));
   return snapshot.exists() ? snapshot.data() : null;

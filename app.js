@@ -1,6 +1,8 @@
 import {
+  addCommunityPost,
   createAccount,
   isFirebaseReady,
+  loadCommunityPosts,
   loadPublicSettings,
   loadCloudState,
   saveCloudState,
@@ -555,30 +557,41 @@ const coachOptions = [
   }
 ];
 
-let state = loadState();
+let state = clone(starterState);
 let firebaseEnabled = false;
 let cloudUser = null;
 let authReady = false;
 let publicSettings = {};
 const app = document.querySelector("#app");
 
-function loadState() {
+function userStateKey(uid) {
+  return `oyoCoachState:${uid}`;
+}
+
+function loadStateForUser(uid) {
   try {
-    const saved = localStorage.getItem("oyoCoachState");
+    const saved = localStorage.getItem(userStateKey(uid));
     if (!saved) return clone(starterState);
     return normalizeState({ ...clone(starterState), ...JSON.parse(saved) });
   } catch (error) {
-    localStorage.removeItem("oyoCoachState");
+    localStorage.removeItem(userStateKey(uid));
     return clone(starterState);
   }
 }
 
 function saveState() {
   updateGrowthProfile();
-  localStorage.setItem("oyoCoachState", JSON.stringify(state));
   if (firebaseEnabled && cloudUser && state.user) {
-    saveCloudState(cloudUser.uid, state).catch((error) => showNotice(error.message));
+    const privateState = privateStateForSave(state);
+    localStorage.setItem(userStateKey(cloudUser.uid), JSON.stringify(privateState));
+    saveCloudState(cloudUser.uid, privateState).catch((error) => showNotice(error.message));
   }
+}
+
+function privateStateForSave(sourceState) {
+  const privateState = clone(sourceState);
+  privateState.community = clone(starterState.community);
+  return privateState;
 }
 
 function normalizeState(nextState) {
@@ -847,6 +860,12 @@ function renderCoach() {
       <div class="coach-input">
         <input id="coachText" placeholder="Ask about life, confidence, relationships, wellbeing, goals, purpose..." />
         <button class="btn primary" id="coachSend">Send</button>
+      </div>
+      <div class="quick-prompts" aria-label="Coach question prompts">
+        <button class="btn small" type="button" data-coach-prompt="What should my next step be today?">Next step</button>
+        <button class="btn small" type="button" data-coach-prompt="How do I move through feeling stuck?">Stuck</button>
+        <button class="btn small" type="button" data-coach-prompt="How can I build confidence right now?">Confidence</button>
+        <button class="btn small" type="button" data-coach-prompt="What business action should I take without losing my peace?">Business</button>
       </div>
     </section>
   `;
@@ -1328,9 +1347,9 @@ function bindEvents() {
     if (firebaseEnabled && cloudUser) {
       signOutUser().catch((error) => showNotice(error.message));
     }
+    state = clone(starterState);
     state.user = null;
     cloudUser = null;
-    saveState();
     render();
   });
 
@@ -1513,10 +1532,25 @@ function bindEvents() {
     if (event.key === "Enter") sendCoachMessage();
   });
 
-  document.querySelector("#addPost")?.addEventListener("click", () => {
+  document.querySelectorAll("[data-coach-prompt]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = document.querySelector("#coachText");
+      if (input) input.value = button.dataset.coachPrompt;
+      sendCoachMessage();
+    });
+  });
+
+  document.querySelector("#addPost")?.addEventListener("click", async () => {
     const input = document.querySelector("#communityText");
     if (!input.value.trim()) return;
-    state.community.unshift({ name: state.user.name, topic: "Owned Option", text: input.value.trim() });
+    const post = { name: state.user.name, topic: "Owned Option", text: input.value.trim() };
+    state.community.unshift(post);
+    try {
+      await addCommunityPost(cloudUser, post);
+      state.community = await loadCommunityPosts();
+    } catch (error) {
+      showAppMessage(`Post saved on this device, but community sync failed: ${error.message}`);
+    }
     saveState();
     render();
   });
@@ -1564,8 +1598,9 @@ async function handleFirebaseCreateAccount() {
   }
   try {
     const user = await createAccount(name, email, password);
+    state = normalizeState(clone(starterState));
     state.user = { name, email, uid: user.uid };
-    await saveCloudState(user.uid, state);
+    await saveCloudState(user.uid, privateStateForSave(state));
   } catch (error) {
     showNotice(error.message);
   }
@@ -1661,6 +1696,7 @@ function coachReply(text) {
   const userName = state.user?.name || "you";
   const messageFocus = summarizeUserMessage(text);
   const premiumAccess = canAccessPremium();
+  const directQuestion = isDirectQuestion(text);
   const turn = state.coachMessages.filter((message) => message.role === "user").length;
   const repeatedTopic = recentUserTopics().filter((recentTopic) => recentTopic === topic).length > 1;
   const opener = pickCoachVariant(
@@ -1850,33 +1886,57 @@ function coachReply(text) {
 
   const reply = replies[topic] || replies.default;
   const format = pickCoachVariant(["standard", "compact", "deeper"], turn);
+  const answerLine = directQuestion ? `Answer: ${directCoachAnswer(topic, premiumAccess)}` : "";
   if (format === "compact") {
     return [
       `${opener} ${tone}`,
+      answerLine,
       `${reply.reflection}`,
       `Here is the option: ${reply.reframe}`,
       `Do this next: ${reply.action}`,
       `Answer this: ${reply.question}`
-    ].join("\n\n");
+    ].filter(Boolean).join("\n\n");
   }
   if (format === "deeper") {
     return [
       `${opener} ${tone}`,
+      answerLine,
       `${reply.reflection} ${memoryLine}`,
       `What I notice: ${reply.reframe}`,
       `Practice to try now: ${reply.practice}`,
       `Your next owned option: ${reply.action}`,
       `Before you reply, check in with this: ${reply.question}`
-    ].join("\n\n");
+    ].filter(Boolean).join("\n\n");
   }
   return [
     `${opener} ${tone}`,
+    answerLine,
     `${reply.reflection} ${memoryLine}`,
     `Reframe: ${reply.reframe}`,
     `Practice: ${reply.practice}`,
     `Next step: ${reply.action}`,
     `Question for you: ${reply.question}`
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
+}
+
+function isDirectQuestion(text) {
+  return /\?$|^(how|what|why|when|where|should|can|could|do|does|is|are|am)\b/i.test(text.trim());
+}
+
+function directCoachAnswer(topic, premiumAccess) {
+  const answers = {
+    stuck: "Start smaller than your fear expects. Regulate first, then take one visible action that proves you are not frozen.",
+    goals: "Pick one goal, one reason it matters, and one action you can finish today. Do not choose five goals at once.",
+    relationships: "Choose the honest conversation, boundary, or pause that protects your peace without abandoning your values.",
+    wellbeing: "Care for your body before demanding more output. The next right step may be rest, food, water, movement, or a simpler expectation.",
+    business: premiumAccess
+      ? "Choose one income action: invite, follow up, share a story, clarify your offer, or open the LWA pathway when your link is ready."
+      : "Choose one business action that supports your actual life, not just pressure: invite, follow up, or clarify your offer.",
+    confidence: "Build confidence with evidence. Do one small visible thing today and let that become proof.",
+    future: "Act as the future self for one decision today. Pick the option she would own, then make it practical.",
+    default: "Name the life area, name the option, and choose the next honest action. That is the fastest way back into ownership."
+  };
+  return answers[topic] || answers.default;
 }
 
 function detectCoachTopic(lower) {
@@ -2056,6 +2116,12 @@ async function boot() {
         } catch (settingsError) {
           publicSettings = {};
         }
+        let communityPosts = [];
+        try {
+          communityPosts = await loadCommunityPosts();
+        } catch (communityError) {
+          communityPosts = [];
+        }
         if (cloudState) {
           state = normalizeState(cloudState);
           state.user = {
@@ -2065,14 +2131,16 @@ async function boot() {
             uid: user.uid
           };
         } else {
+          state = loadStateForUser(user.uid);
           state.user = {
-            name: user.displayName || user.email.split("@")[0],
+            name: state.user?.name || user.displayName || user.email.split("@")[0],
             email: user.email,
             uid: user.uid
           };
-          await saveCloudState(user.uid, state);
+          await saveCloudState(user.uid, privateStateForSave(state));
         }
-        localStorage.setItem("oyoCoachState", JSON.stringify(state));
+        state.community = communityPosts.length ? communityPosts : clone(starterState.community);
+        localStorage.setItem(userStateKey(user.uid), JSON.stringify(privateStateForSave(state)));
         render();
       } catch (error) {
         state.user = null;

@@ -11,6 +11,8 @@ An installable PWA for the OYO Own Your Options coaching experience.
 - AI coach flow that adapts to each person's growth memory, goals, and free vs premium state
 - Selectable coach identities: Maya, Elena, Marcus, or Noah
 - AI coach portraits, short coach bios, and a personalized hello using the member's name
+- Private per-user app memory so one member cannot see another member's journal, goals, actions, or coach memory
+- Shared community feed stored separately from private member data
 - Future self statement
 - Vision board and journal
 - Daily manifestation cards and gratitude

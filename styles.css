@@ -605,6 +605,12 @@ select:focus {
   gap: 10px;
 }
 
+.quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .memory-strip {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
