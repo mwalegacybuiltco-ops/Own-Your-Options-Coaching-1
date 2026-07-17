@@ -1661,32 +1661,149 @@ function coachReply(text) {
   const userName = state.user?.name || "you";
   const messageFocus = summarizeUserMessage(text);
   const premiumAccess = canAccessPremium();
-  const opener = `${coach.name} here, ${userName}.`;
-  const memoryLine = `I am connecting this to your ${growth.stage.toLowerCase()} stage and your current pattern: ${growth.pattern.toLowerCase()}.`;
+  const turn = state.coachMessages.filter((message) => message.role === "user").length;
+  const repeatedTopic = recentUserTopics().filter((recentTopic) => recentTopic === topic).length > 1;
+  const opener = pickCoachVariant(
+    [
+      `${coach.name} here, ${userName}.`,
+      `${userName}, I am with you.`,
+      `I hear you, ${userName}.`,
+      `Let us slow this down together, ${userName}.`
+    ],
+    turn + coach.id.length
+  );
+  const memoryLine = repeatedTopic
+    ? `Since this theme has come up more than once, I am treating it as a pattern your OYO Compass should pay attention to.`
+    : pickCoachVariant(
+        [
+          `I am connecting this to your ${growth.stage.toLowerCase()} stage and your current pattern: ${growth.pattern.toLowerCase()}.`,
+          `Your growth memory says the next useful move is: ${growth.nextStep.toLowerCase()}.`,
+          `This matters because your current focus is ${growth.focus.toLowerCase()}, not just solving one isolated problem.`
+        ],
+        turn
+      );
 
   const replies = {
     stuck: {
-      reflection: `It sounds like ${messageFocus} feels heavier than it needs to feel right now.`,
-      reframe: "Being stuck does not mean you have no options. It usually means one part of you needs safety before another part can move.",
+      reflection: pickCoachVariant(
+        [
+          `It sounds like ${messageFocus} feels heavier than it needs to feel right now.`,
+          `I hear the stuck place in ${messageFocus}, and I do not want to rush you past it.`,
+          `This sounds like a moment where part of you wants movement and part of you wants protection.`
+        ],
+        turn
+      ),
+      reframe: pickCoachVariant(
+        [
+          "Being stuck does not mean you have no options. It usually means one part of you needs safety before another part can move.",
+          "The block is information, not a verdict. It is showing us where the next step needs to be smaller, safer, or clearer.",
+          "You do not need to force momentum. You need one believable option that your body can say yes to."
+        ],
+        turn
+      ),
       practice: premiumAccess
         ? "Try the Pattern Interrupt: stand up, change your posture, say 'new option,' then take the smallest action that breaks the old loop."
         : "Take three slow breaths and ask: what is still available to me while this feeling is here?",
-      action: "Choose one action that takes less than 10 minutes and creates evidence, not perfection.",
-      question: "What is the smallest honest step you could take before the day ends?"
+      action: pickCoachVariant(
+        [
+          "Choose one action that takes less than 10 minutes and creates evidence, not perfection.",
+          "Write down the next step so small it almost feels too easy, then do only that.",
+          "Move your body first, then make one simple decision from a calmer state."
+        ],
+        turn
+      ),
+      question: pickCoachVariant(
+        [
+          "What is the smallest honest step you could take before the day ends?",
+          "What would make this feel 10 percent safer to begin?",
+          "What option are you avoiding because it feels too simple?"
+        ],
+        turn
+      )
     },
     goals: {
-      reflection: `I hear that you want movement around ${messageFocus}.`,
-      reframe: "A goal becomes real when it is connected to identity, evidence, and a next action you can actually complete.",
-      practice: "Write this sentence: I will do X by Y because I am becoming Z.",
-      action: "Add one daily action that is small enough to finish today and meaningful enough to count.",
-      question: "Which goal matters most right now: peace, confidence, health, relationship, money, business, or purpose?"
+      reflection: pickCoachVariant(
+        [
+          `I hear that you want movement around ${messageFocus}.`,
+          `This sounds like a goal that needs to become a daily rhythm, not just an idea.`,
+          `I hear the desire for progress, and I want to help you make it concrete.`
+        ],
+        turn
+      ),
+      reframe: pickCoachVariant(
+        [
+          "A goal becomes real when it is connected to identity, evidence, and a next action you can actually complete.",
+          "The goal is not just the result. It is the person you practice becoming while you move toward it.",
+          "If the goal feels too big, we shrink the action, not the desire."
+        ],
+        turn
+      ),
+      practice: pickCoachVariant(
+        [
+          "Write this sentence: I will do X by Y because I am becoming Z.",
+          "Choose one 24-hour action and one seven-day action. Keep both measurable.",
+          "Name the result, the identity, and the first piece of evidence."
+        ],
+        turn
+      ),
+      action: pickCoachVariant(
+        [
+          "Add one daily action that is small enough to finish today and meaningful enough to count.",
+          "Pick the goal that creates the most relief first, then choose one visible step.",
+          "Turn the goal into a calendar moment, not a someday intention."
+        ],
+        turn
+      ),
+      question: pickCoachVariant(
+        [
+          "Which goal matters most right now: peace, confidence, health, relationship, money, business, or purpose?",
+          "What would count as evidence by tonight?",
+          "What goal are you ready to own even if it starts small?"
+        ],
+        turn
+      )
     },
     relationships: {
-      reflection: `This sounds connected to relationship, home, love, or belonging.`,
-      reframe: "Owning your options in relationships does not mean controlling the other person. It means choosing the boundary, conversation, or loving action that keeps you in self-respect.",
-      practice: "Name what you need, what you can control, and what you are no longer available to carry alone.",
-      action: "Choose one honest sentence you can say or one boundary you can practice with kindness.",
-      question: "What would future you say if she could protect both peace and connection?"
+      reflection: pickCoachVariant(
+        [
+          `This sounds connected to relationship, home, love, or belonging.`,
+          `I hear that this is not just logistics; there is care and emotion inside it.`,
+          `This feels like a place where your peace and your connection both matter.`
+        ],
+        turn
+      ),
+      reframe: pickCoachVariant(
+        [
+          "Owning your options in relationships does not mean controlling the other person. It means choosing the boundary, conversation, or loving action that keeps you in self-respect.",
+          "A loving option can still have a boundary. A boundary can still be kind.",
+          "The goal is not to be perfectly understood by everyone. The goal is to stay honest with yourself."
+        ],
+        turn
+      ),
+      practice: pickCoachVariant(
+        [
+          "Name what you need, what you can control, and what you are no longer available to carry alone.",
+          "Write the sentence you wish you could say, then soften it without abandoning the truth.",
+          "Separate the facts, the feeling, and the request before you respond."
+        ],
+        turn
+      ),
+      action: pickCoachVariant(
+        [
+          "Choose one honest sentence you can say or one boundary you can practice with kindness.",
+          "Decide whether this needs a conversation, a pause, a request, or a boundary.",
+          "Protect your peace with one clear action instead of replaying the whole story."
+        ],
+        turn
+      ),
+      question: pickCoachVariant(
+        [
+          "What would future you say if she could protect both peace and connection?",
+          "What part of this is yours to own, and what part is not yours to carry?",
+          "What truth needs to be said kindly?"
+        ],
+        turn
+      )
     },
     wellbeing: {
       reflection: `Your body and energy are part of this, not separate from it.`,
@@ -1732,6 +1849,26 @@ function coachReply(text) {
   };
 
   const reply = replies[topic] || replies.default;
+  const format = pickCoachVariant(["standard", "compact", "deeper"], turn);
+  if (format === "compact") {
+    return [
+      `${opener} ${tone}`,
+      `${reply.reflection}`,
+      `Here is the option: ${reply.reframe}`,
+      `Do this next: ${reply.action}`,
+      `Answer this: ${reply.question}`
+    ].join("\n\n");
+  }
+  if (format === "deeper") {
+    return [
+      `${opener} ${tone}`,
+      `${reply.reflection} ${memoryLine}`,
+      `What I notice: ${reply.reframe}`,
+      `Practice to try now: ${reply.practice}`,
+      `Your next owned option: ${reply.action}`,
+      `Before you reply, check in with this: ${reply.question}`
+    ].join("\n\n");
+  }
   return [
     `${opener} ${tone}`,
     `${reply.reflection} ${memoryLine}`,
@@ -1744,13 +1881,20 @@ function coachReply(text) {
 
 function detectCoachTopic(lower) {
   if (/(stuck|fear|scared|overwhelm|anxious|anxiety|panic|frozen|blocked|behind)/.test(lower)) return "stuck";
-  if (/(goal|action|today|next|plan|steps|focus|finish|complete)/.test(lower)) return "goals";
+  if (/(business|income|lwa|sales|client|offer|launch|lead|customer|money|premium)/.test(lower)) return "business";
   if (/(relationship|family|marriage|partner|friend|kids|children|home|love|boundary)/.test(lower)) return "relationships";
   if (/(health|body|wellbeing|well-being|energy|sleep|routine|stress|tired|burnout)/.test(lower)) return "wellbeing";
-  if (/(business|income|lwa|sales|client|offer|launch|lead|customer|money|premium)/.test(lower)) return "business";
   if (/(confidence|visible|visibility|belief|trust|doubt|worthy|worth)/.test(lower)) return "confidence";
   if (/(future|identity|manifest|manifestation|vision|dream|becoming)/.test(lower)) return "future";
+  if (/(goal|action|today|next|plan|steps|focus|finish|complete)/.test(lower)) return "goals";
   return "default";
+}
+
+function recentUserTopics() {
+  return state.coachMessages
+    .filter((message) => message.role === "user")
+    .slice(-4)
+    .map((message) => detectCoachTopic(message.text.toLowerCase()));
 }
 
 function coachTone(coachId) {
@@ -1761,6 +1905,10 @@ function coachTone(coachId) {
     noah: "Let us turn this into a grounded strategy that still protects your purpose."
   };
   return tones[coachId] || tones.maya;
+}
+
+function pickCoachVariant(options, salt = 0) {
+  return options[Math.abs(salt) % options.length];
 }
 
 function summarizeUserMessage(text) {
